@@ -4,56 +4,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DEADLINE: 13</title>
+  <meta name="theme-color" content="#080a10">
+  <title>DEADLINE: 13 — Ночная смена</title>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <div id="game">
-    <div id="hud">
-      <div class="hud-top">
-        <div class="brand">DEADLINE<span>: 13</span></div>
-        <div class="shift">
-          СМЕНА <b id="shift">01</b>
-          <span id="clock">10:00</span>
+  <main id="game">
+    <div id="hud" class="hud hidden">
+      <header class="topbar">
+        <div class="logo">D<span>:</span>13 <small>SECURITY SYSTEM</small></div>
+        <div class="shift-status">
+          <span class="live-dot"></span>
+          <span>НОЧНАЯ СМЕНА</span>
+          <strong id="clock">10:00</strong>
+        </div>
+        <button id="pause-button" class="icon-button" aria-label="Пауза">Ⅱ</button>
+      </header>
+
+      <section class="mission">
+        <span class="eyebrow">ТЕКУЩЕЕ ЗАДАНИЕ</span>
+        <div id="objective">Осмотри помещение и сообщай об аномалиях.</div>
+        <div class="mission-progress">
+          <div id="progress-fill"></div>
+        </div>
+        <div class="progress-label">
+          <span>ОТЧЁТЫ</span>
+          <span id="report-count">0 принято</span>
+        </div>
+      </section>
+
+      <div class="crosshair"><span></span></div>
+      <div id="prompt" class="interaction-prompt"></div>
+
+      <div id="alert" class="alert hidden">
+        <span class="alert-icon">!</span>
+        <div>
+          <strong id="alert-title">ОБНАРУЖЕНА АНОМАЛИЯ</strong>
+          <p id="message"></p>
         </div>
       </div>
 
-      <div id="objective">ПРОВЕРЬ ОФИС. НЕ ДОВЕРЯЙ ГЛАЗАМ.</div>
-      <div id="crosshair">+</div>
-      <div id="prompt"></div>
-      <div id="message"></div>
+      <footer class="bottom-hud">
+        <div class="sanity-panel">
+          <div class="sanity-heading">
+            <span>ПСИХИЧЕСКОЕ СОСТОЯНИЕ</span>
+            <strong id="sanity-value">100%</strong>
+          </div>
+          <div class="sanity-track"><div id="sanity"></div></div>
+        </div>
+        <div class="controls">
+          <span><kbd>W A S D</kbd> Движение</span>
+          <span><kbd>МЫШЬ</kbd> Осмотр</span>
+          <span><kbd>E</kbd> Проверить</span>
+          <span><kbd>R</kbd> Сообщить</span>
+        </div>
+      </footer>
+    </div>
 
-      <div class="hud-bottom">
-        <span>WASD — ДВИЖЕНИЕ</span>
-        <span>МЫШЬ — ОБЗОР</span>
-        <span>E — ВЗАИМОДЕЙСТВИЕ</span>
+    <section id="start-screen" class="screen">
+      <div class="start-content">
+        <div class="system-label"><span class="live-dot"></span> СИСТЕМА БЕЗОПАСНОСТИ · ONLINE</div>
+        <h1 class="game-title">DEADLINE<span>:13</span></h1>
+        <p class="tagline">Некоторые вещи лучше не замечать.</p>
+
+        <div class="briefing">
+          <div class="briefing-icon">▤</div>
+          <div>
+            <strong>ИНСТРУКТАЖ ПЕРЕД СМЕНОЙ</strong>
+            <p>Осматривай офис, замечай изменения и отправляй отчёты. Ложные сообщения ухудшают твоё состояние.</p>
+          </div>
+        </div>
+
+        <button id="start-button" class="primary-button">
+          <span>НАЧАТЬ СМЕНУ</span><span class="button-arrow">→</span>
+        </button>
+        <p class="start-note">10 МИНУТ · WASD · МЫШЬ · E / R</p>
       </div>
-    </div>
+      <div class="screen-decoration decoration-one"></div>
+      <div class="screen-decoration decoration-two"></div>
+    </section>
 
-    <div id="start-screen" class="screen">
-      <div class="title">DEADLINE<span>: 13</span></div>
-      <p class="subtitle">НОЧНАЯ СМЕНА · 00:00—06:00</p>
-      <p class="story">
-        Тебе оставили простой список инструкций.<br>
-        Если что-то изменилось — сообщи об аномалии.<br>
-        Если ничего не изменилось — проверь ещё раз.
-      </p>
-      <button id="start-button">НАЧАТЬ СМЕНУ</button>
-      <p class="hint">Рекомендуется играть в наушниках.</p>
-    </div>
+    <section id="pause-screen" class="screen hidden">
+      <div class="modal-card">
+        <span class="eyebrow">ПРОТОКОЛ 13</span>
+        <h2>Смена приостановлена</h2>
+        <p>Офис всё ещё ждёт тебя.</p>
+        <button id="resume-button" class="primary-button">ПРОДОЛЖИТЬ</button>
+        <button id="quit-button" class="secondary-button">ЗАВЕРШИТЬ СМЕНУ</button>
+      </div>
+    </section>
 
-    <div id="report-screen" class="screen hidden">
-      <h1 id="report-title">СМЕНА ЗАВЕРШЕНА</h1>
-      <p id="report-text"></p>
-      <p id="report-score"></p>
-      <button id="restart-button">НОВАЯ СМЕНА</button>
-    </div>
-
-    <div id="sanity-wrap">
-      <span>СОСТОЯНИЕ</span>
-      <div class="sanity-bar"><div id="sanity"></div></div>
-    </div>
-  </div>
+    <section id="report-screen" class="screen hidden">
+      <div class="modal-card result-card">
+        <span class="eyebrow">ОТЧЁТ СИСТЕМЫ</span>
+        <h2 id="report-title">СМЕНА ЗАВЕРШЕНА</h2>
+        <p id="report-text"></p>
+        <div class="result-stats">
+          <div><strong id="result-correct">0</strong><span>Отчёты</span></div>
+          <div><strong id="result-errors">0</strong><span>Ошибки</span></div>
+          <div><strong id="result-score">0</strong><span>Очки</span></div>
+        </div>
+        <button id="restart-button" class="primary-button">НОВАЯ СМЕНА →</button>
+      </div>
+    </section>
+  </main>
 
   <script type="module" src="./game.js"></script>
 </body>
