@@ -1,17 +1,5 @@
 
 import { createScene } from "./src/scene.js";
-import { ShiftTimer } from "./src/timer.js";
-import { AnomalyManager } from "./src/anomalies.js";
-import { applyAnomaly } from "./src/office.js";
-import { Printer } from "./src/printer.js";
-import { getEnding } from "./src/endings.js";
-import {
-  initAudio,
-  playClick,
-  playAmbient,
-  playReport
-} from "./src/audio.js";
-import { recordResult } from "./src/save.js";
 
 const $ = selector => document.querySelector(selector);
 
@@ -19,273 +7,355 @@ const startScreen = $("#start-screen");
 const pauseScreen = $("#pause-screen");
 const reportScreen = $("#report-screen");
 const hud = $("#hud");
-const alertBox = $("#alert");
-const message = $("#message");
 const prompt = $("#prompt");
 const clock = $("#clock");
 const sanityBar = $("#sanity");
+const sanityValue = $("#sanity-value");
+const objective = $("#objective");
+const progressFill = $("#progress-fill");
 
-let game;
-let timer;
-let anomalyManager;
-let printer;
+let game = null;
 let running = false;
 let paused = false;
+let finished = false;
+
 let sanity = 100;
-let walkingTime = 0;
-let previousFrame = performance.now();
-let messageTimeout;
-let reportCount = 0;
-let handledKeys = new Set();
+let remainingTime = 600;
+let lastFrame = performance.now();
+let nextAnomalyAt = 0;
+let activeAnomaly = null;
 
-function showMessage(text, duration = 3500) {
-  message.textContent = text;
-  alertBox.classList.remove("hidden");
+let correct = 0;
+let mistakes = 0;
+let score = 0;
+let busy = false;
+let audioContext = null;
 
-  clearTimeout(messageTimeout);
-  messageTimeout = setTimeout(() => {
-    if (!anomalyManager?.active) {
-      alertBox.classList.add("hidden");
+const reportedTargets = new WeakSet();
+
+function setText(selector, value) {
+  const element = $(selector);
+  if (element) element.textContent = value;
+}
+
+function hide(element) {
+  element?.classList.add("hidden");
+}
+
+function show(element) {
+  element?.classList.remove("hidden");
+}
+
+function sound(frequency = 440, duration = 0.08, type = "sine") {
+  try {
+    audioContext ??= new AudioContext();
+
+    if (audioContext.state === "suspended") {
+      audioContext.resume();
     }
-  }, duration);
+
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    oscillator.type = type;
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(0.045, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(
+      0.001,
+      audioContext.currentTime + duration
+    );
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + duration);
+  } catch {
+    // Игра продолжает работать, даже если звук недоступен.
+  }
 }
 
 function updateSanity(amount) {
   sanity = Math.max(0, Math.min(100, sanity + amount));
 
-  sanityBar.style.width = `${sanity}%`;
-  $("#sanity-value").textContent = `${Math.round(sanity)}%`;
-
-  const color = sanity > 60
-    ? "#52e2ae"
-    : sanity > 30
-      ? "#ffc45c"
-      : "#ff4b60";
-
-  $("#sanity-value").style.color = color;
-
-  if (sanity < 35) {
-    document.body.classList.add("danger");
-  } else {
-    document.body.classList.remove("danger");
+  if (sanityBar) {
+    sanityBar.style.width = `${sanity}%`;
   }
 
-  if (sanity <= 0 && running) finishGame();
+  setText("#sanity-value", `${Math.round(sanity)}%`);
+
+  if (sanityValue) {
+    sanityValue.style.color =
+      sanity > 60 ? "#52e2ae" :
+      sanity > 30 ? "#ffc45c" :
+      "#ff4b60";
+  }
+
+  document.body.classList.toggle("danger", sanity <= 30);
+
+  if (sanity <= 0 && running) {
+    finishGame("sanity");
+  }
 }
 
-function updateReportUI() {
-  $("#report-count").textContent = `${reportCount} принято`;
-  $("#progress-fill").style.width =
-    `${Math.min(100, reportCount / 5 * 100)}%`;
+function updateProgress() {
+  setText("#report-count", `${correct} найдено`);
+
+  if (progressFill) {
+    progressFill.style.width = `${Math.min(100, correct / 10 * 100)}%`;
+  }
+}
+
+function updateClock() {
+  const total = Math.max(0, Math.ceil(remainingTime));
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+
+  setText(
+    "#clock",
+    `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+  );
+
+  if (clock) {
+    clock.style.color = total <= 60 ? "#ff4b60" : "#edf3ff";
+  }
+}
+
+function chooseTarget() {
+  if (!game || game.anomalyTargets.length === 0) return null;
+
+  const candidates = game.anomalyTargets.filter(target =>
+    target.visible &&
+    !reportedTargets.has(target) &&
+    !target.userData.isAnomaly &&
+    !target.userData.fading
+  );
+
+  if (!candidates.length) {
+    // После полного осмотра можно снова использовать предметы.
+    for (const target of game.anomalyTargets) {
+      reportedTargets.delete(target);
+    }
+
+    return chooseTarget();
+  }
+
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+function spawnAnomaly() {
+  if (!running || paused || activeAnomaly || !game) return;
+
+  const target = chooseTarget();
+  if (!target) return;
+
+  const kinds = ["displaced", "screen", "enlarged", "dark"];
+  const kind = kinds[Math.floor(Math.random() * kinds.length)];
+
+  game.setAnomaly(target, kind);
+
+  activeAnomaly = {
+    target,
+    kind,
+    startedAt: performance.now()
+  };
+
+  // Не сообщаем игроку о появлении аномалии.
+  // Не показываем всплывающие окна или предупреждения.
+  nextAnomalyAt = performance.now() + 12000 + Math.random() * 10000;
+}
+
+async function detectAnomaly(target) {
+  if (!running || paused || busy || !target) return;
+
+  if (target.name === "printer") {
+    sound(520, 0.07);
+    setText("#objective", "Принтер: устройство работает.");
+    return;
+  }
+
+  if (!activeAnomaly) {
+    // Не подсказываем игроку, правильно ли он проверил предмет.
+    updateSanity(-0.5);
+    sound(150, 0.05, "triangle");
+    return;
+  }
+
+  if (target !== activeAnomaly.target) {
+    // Неправильная проверка не вызывает никаких уведомлений.
+    mistakes++;
+    updateSanity(-3);
+    sound(110, 0.12, "triangle");
+    return;
+  }
+
+  busy = true;
+
+  const anomaly = activeAnomaly;
+  activeAnomaly = null;
+
+  correct++;
+  score += 100;
+  updateSanity(4);
+  updateProgress();
+
+  // Плавно скрываем изменённый предмет.
+  await game.fadeOutObject(anomaly.target, 350);
+
+  // После обнаружения возвращаем предмет к нормальному виду.
+  game.clearAnomaly(anomaly.target);
+  anomaly.target.visible = true;
+  reportedTargets.add(anomaly.target);
+
+  sound(680, 0.1);
+  setText("#objective", "Продолжай осмотр помещения.");
+
+  nextAnomalyAt = performance.now() + 5000 + Math.random() * 5000;
+  busy = false;
 }
 
 function pauseGame() {
-  if (!running || paused) return;
+  if (!running || paused || finished) return;
 
   paused = true;
-  timer.stop();
-  pauseScreen.classList.remove("hidden");
+  show(pauseScreen);
   document.exitPointerLock?.();
-  playClick();
+  sound(260, 0.06);
 }
 
 function resumeGame() {
-  if (!running || !paused) return;
+  if (!running || !paused || finished) return;
 
   paused = false;
-  pauseScreen.classList.add("hidden");
-  previousFrame = performance.now();
-  timer.start();
-  playClick();
+  hide(pauseScreen);
+  lastFrame = performance.now();
+  sound(420, 0.06);
   game.renderer.domElement.requestPointerLock?.();
 }
 
-function finishGame() {
-  if (!running) return;
+function finishGame(reason = "time") {
+  if (finished) return;
 
+  finished = true;
   running = false;
   paused = false;
-  timer.stop();
   document.exitPointerLock?.();
 
-  pauseScreen.classList.add("hidden");
-  alertBox.classList.add("hidden");
+  hide(pauseScreen);
+  hide(hud);
 
-  const ending = getEnding({
-    correct: anomalyManager.correct,
-    errors: anomalyManager.errors,
-    sanity
-  });
+  const title = reason === "sanity"
+    ? "СОЗНАНИЕ ПОТЕРЯНО"
+    : "СМЕНА ЗАВЕРШЕНА";
 
-  const score = Math.max(
-    0,
-    anomalyManager.correct * 100 -
-    anomalyManager.errors * 50 +
-    Math.round(sanity)
-  );
+  const text = reason === "sanity"
+    ? "Ты больше не можешь доверять собственным глазам."
+    : "Смена закончилась. Но всё ли ты заметил?";
 
-  recordResult(score);
+  setText("#report-title", title);
+  setText("#report-text", text);
+  setText("#result-correct", correct);
+  setText("#result-errors", mistakes);
+  setText("#result-score", score + Math.round(sanity));
 
-  $("#report-title").textContent = ending.title;
-  $("#report-text").textContent = ending.text;
-  $("#result-correct").textContent = anomalyManager.correct;
-  $("#result-errors").textContent = anomalyManager.errors;
-  $("#result-score").textContent = score;
+  show(reportScreen);
+  sound(reason === "sanity" ? 90 : 330, 0.5, "sawtooth");
 
-  reportScreen.classList.remove("hidden");
-  playReport();
+  try {
+    localStorage.setItem("deadline13-best", String(Math.max(
+      Number(localStorage.getItem("deadline13-best") || 0),
+      score + Math.round(sanity)
+    )));
+  } catch {
+    // Хранилище может быть недоступно.
+  }
 }
 
-function beginGame() {
-  initAudio();
-  playClick();
-
-  // Перезапуск страницы гарантирует чистое состояние сцены и таймера.
+function startGame() {
   if (game) {
-    window.location.reload();
-    return;
+    game.dispose();
+    game = null;
   }
 
-  startScreen.classList.add("hidden");
-  hud.classList.remove("hidden");
+  sanity = 100;
+  remainingTime = 600;
+  correct = 0;
+  mistakes = 0;
+  score = 0;
+  busy = false;
+  finished = false;
+  paused = false;
+  running = true;
+  activeAnomaly = null;
+  nextAnomalyAt = performance.now() + 8000;
 
   game = createScene();
-  printer = new Printer(game.scene);
 
-  running = true;
-  paused = false;
-  sanity = 100;
-  reportCount = 0;
+  hide(startScreen);
+  hide(pauseScreen);
+  hide(reportScreen);
+  show(hud);
 
+  setText("#objective", "Осмотри офис. Ищи предметы, которые выглядят неправильно.");
+  setText("#prompt", "WASD — движение · E — осмотреть предмет");
   updateSanity(0);
-  updateReportUI();
+  updateProgress();
+  updateClock();
 
-  anomalyManager = new AnomalyManager({
-    onMessage: text => showMessage(text, 5000),
-
-    onChange: anomaly => {
-      applyAnomaly(game.scene, anomaly);
-
-      if (anomaly) {
-        $("#objective").textContent =
-          `Обнаружено изменение: ${anomaly.title}. Найди его и нажми E или R для отчёта.`;
-
-        alertBox.classList.remove("hidden");
-        $("#alert-title").textContent = "ОБНАРУЖЕНА АНОМАЛИЯ";
-      } else {
-        $("#objective").textContent =
-          "Осмотри помещение и сообщай об аномалиях.";
-
-        alertBox.classList.add("hidden");
-      }
-    },
-
-    onPenalty: penalty => updateSanity(-penalty)
-  });
-
-  timer = new ShiftTimer(
-    600,
-
-    seconds => {
-      const total = Math.ceil(seconds);
-      const minutes = Math.floor(total / 60);
-      const secs = total % 60;
-
-      clock.textContent =
-        `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-
-      clock.style.color = seconds < 60 ? "#ff4b60" : "#edf3ff";
-    },
-
-    finishGame
-  );
-
-  anomalyManager.start();
-  timer.start();
-  playAmbient();
-
+  lastFrame = performance.now();
   game.renderer.domElement.requestPointerLock?.();
+  sound(440, 0.12);
 }
 
-function reportAnomaly() {
-  if (!running || paused) return;
+function handleInteraction() {
+  if (!running || paused || busy || !game) return;
 
-  const hadAnomaly = Boolean(anomalyManager.active);
-  anomalyManager.report();
+  const target = game.target;
 
-  if (hadAnomaly) {
-    reportCount++;
-    updateReportUI();
-    updateSanity(4);
-    playReport();
-  } else {
-    updateSanity(-8);
-  }
-}
+  if (!target) return;
 
-function interact() {
-  if (!running || paused || !game) return;
-
-  const target = game.update(0);
-
-  if (!target) {
-    showMessage("Посмотри на предмет, чтобы взаимодействовать.", 1800);
-    return;
-  }
-
-  playClick();
-
-  if (target.name === "printer") {
-    showMessage(printer.print(), 2500);
-    return;
-  }
-
-  if (anomalyManager.active) {
-    reportAnomaly();
-  } else {
-    showMessage("Изменений не обнаружено. Продолжай осмотр.", 2200);
-    updateSanity(-1);
-  }
+  detectAnomaly(target);
 }
 
 function animate(now) {
   requestAnimationFrame(animate);
 
-  if (!game) return;
+  if (!game || finished) return;
 
-  const delta = Math.min((now - previousFrame) / 1000, 0.05);
-  previousFrame = now;
+  const delta = Math.min((now - lastFrame) / 1000, 0.05);
+  lastFrame = now;
 
   if (running && !paused) {
+    remainingTime -= delta;
+
+    updateClock();
+
+    if (remainingTime <= 0) {
+      remainingTime = 0;
+      updateClock();
+      finishGame("time");
+      return;
+    }
+
+    if (!activeAnomaly && now >= nextAnomalyAt) {
+      spawnAnomaly();
+    }
+
     const target = game.update(delta);
 
-    if (target) {
-      prompt.textContent = `[E] ПРОВЕРИТЬ: ${target.name.toUpperCase()}`;
-      prompt.style.opacity = "1";
-    } else {
-      prompt.textContent = "R — СООБЩИТЬ ОБ АНОМАЛИИ";
-      prompt.style.opacity = ".75";
+    if (prompt) {
+      if (target) {
+        prompt.textContent = `[E] ОСМОТРЕТЬ: ${target.userData.interactionName || target.name}`;
+        prompt.style.opacity = "1";
+      } else {
+        prompt.textContent = "Осматривай помещение";
+        prompt.style.opacity = "0.65";
+      }
     }
 
-    // Плавное покачивание камеры при движении.
-    const keys = game.keys;
-    if (keys && (
-      keys.has("KeyW") || keys.has("KeyA") ||
-      keys.has("KeyS") || keys.has("KeyD")
-    )) {
-      walkingTime += delta * 8;
-      game.camera.position.y = 1.65 + Math.sin(walkingTime) * 0.025;
-    } else {
-      game.camera.position.y += (1.65 - game.camera.position.y) * Math.min(1, delta * 8);
-    }
-
-    anomalyManager.update();
-
-    // Мерцание лампы при соответствующей аномалии.
-    if (anomalyManager.active?.id === "light") {
-      game.lamp.intensity = Math.random() > 0.5 ? 28 : 1;
-    } else {
-      game.lamp.intensity = 28;
+    // Незаметное постепенное снижение рассудка.
+    if (Math.random() < delta * 0.08) {
+      updateSanity(-0.1);
     }
   }
 
@@ -293,27 +363,23 @@ function animate(now) {
 }
 
 document.addEventListener("keydown", event => {
-  if (handledKeys.has(event.code)) return;
-  handledKeys.add(event.code);
-
-  if (event.code === "Escape" && running && !paused) {
-    pauseGame();
-    return;
+  if (event.code === "KeyE" && !event.repeat) {
+    handleInteraction();
   }
 
-  if (event.code === "KeyE") interact();
-
-  if (event.code === "KeyR") reportAnomaly();
+  if (event.code === "Escape") {
+    if (running && !paused) {
+      pauseGame();
+    } else if (running && paused) {
+      resumeGame();
+    }
+  }
 });
 
-document.addEventListener("keyup", event => {
-  handledKeys.delete(event.code);
-});
-
-$("#start-button").addEventListener("click", beginGame);
-$("#pause-button").addEventListener("click", pauseGame);
-$("#resume-button").addEventListener("click", resumeGame);
-$("#quit-button").addEventListener("click", finishGame);
-$("#restart-button").addEventListener("click", () => window.location.reload());
+$("#start-button")?.addEventListener("click", startGame);
+$("#resume-button")?.addEventListener("click", resumeGame);
+$("#pause-button")?.addEventListener("click", pauseGame);
+$("#restart-button")?.addEventListener("click", startGame);
+$("#quit-button")?.addEventListener("click", () => finishGame("time"));
 
 requestAnimationFrame(animate);
