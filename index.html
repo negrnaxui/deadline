@@ -1,114 +1,1147 @@
-
+```html
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#080a10">
-  <title>DEADLINE: 13 — Ночная смена</title>
-  <link rel="stylesheet" href="./style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#08090d" />
+  <meta
+    name="description"
+    content="DEADLINE: 13 — хоррор об аномалиях в ночном офисе."
+  />
+
+  <title>DEADLINE: 13 — Night Shift</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Share+Tech+Mono&display=swap"
+    rel="stylesheet"
+  />
+
+  <style>
+    :root {
+      --bg: #08090d;
+      --panel: rgba(13, 15, 22, 0.94);
+      --panel-light: rgba(25, 28, 38, 0.88);
+      --border: rgba(255, 255, 255, 0.1);
+      --text: #e9eaf0;
+      --muted: #858997;
+      --red: #ed344b;
+      --red-dark: #7f1725;
+      --green: #71e6ae;
+      --yellow: #e8c36c;
+      --mono: "Share Tech Mono", monospace;
+      --font: "Inter", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+    }
+
+    body {
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    button:focus-visible {
+      outline: 2px solid var(--red);
+      outline-offset: 4px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    #game {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(ellipse at center, #171923 0%, #08090d 75%);
+    }
+
+    #game canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    /* Общие эффекты */
+
+    .vignette {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background:
+        radial-gradient(
+          ellipse at center,
+          transparent 35%,
+          rgba(0, 0, 0, 0.28) 72%,
+          rgba(0, 0, 0, 0.84) 120%
+        );
+    }
+
+    .scanlines {
+      position: fixed;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      opacity: 0.12;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 3px,
+        rgba(0, 0, 0, 0.45) 4px
+      );
+    }
+
+    .noise {
+      position: fixed;
+      inset: -50%;
+      z-index: 3;
+      pointer-events: none;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E");
+      animation: noiseMove 0.2s steps(2) infinite;
+    }
+
+    @keyframes noiseMove {
+      0% { transform: translate(0, 0); }
+      25% { transform: translate(2%, -1%); }
+      50% { transform: translate(-1%, 2%); }
+      75% { transform: translate(1%, 1%); }
+      100% { transform: translate(-2%, -1%); }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
+    }
+
+    @keyframes flicker {
+      0%, 94%, 96%, 100% { opacity: 1; }
+      95% { opacity: 0.65; }
+      97% { opacity: 0.82; }
+    }
+
+    /* Общий экран меню */
+
+    .screen {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      overflow-y: auto;
+      background:
+        radial-gradient(
+          ellipse at 50% 45%,
+          rgba(36, 18, 28, 0.35),
+          rgba(5, 6, 10, 0.94) 72%
+        );
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+    }
+
+    .screen-content {
+      width: min(100%, 640px);
+      margin: auto;
+      animation: fadeIn 0.7s ease both;
+    }
+
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+      color: var(--red);
+      font-family: var(--mono);
+      font-size: 12px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      flex: 0 0 7px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 12px rgba(237, 52, 75, 0.8);
+      animation: pulse 2s infinite;
+    }
+
+    .logo {
+      margin: 0;
+      color: #f3f3f6;
+      font-size: clamp(44px, 9vw, 88px);
+      font-weight: 900;
+      line-height: 0.9;
+      letter-spacing: -0.075em;
+      text-transform: uppercase;
+      text-shadow: 0 0 45px rgba(237, 52, 75, 0.12);
+    }
+
+    .logo span {
+      color: var(--red);
+    }
+
+    .subtitle {
+      margin: 22px 0 0;
+      color: #b5b7c2;
+      font-family: var(--mono);
+      font-size: 14px;
+      letter-spacing: 0.15em;
+      line-height: 1.8;
+      text-transform: uppercase;
+    }
+
+    .intro {
+      max-width: 490px;
+      margin: 26px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.9;
+    }
+
+    .menu-divider {
+      width: 100%;
+      height: 1px;
+      margin: 30px 0;
+      background: linear-gradient(
+        90deg,
+        var(--red),
+        rgba(255, 255, 255, 0.12),
+        transparent
+      );
+    }
+
+    .menu-meta {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 28px 0;
+    }
+
+    .meta-card {
+      min-width: 0;
+      padding: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .meta-label {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .meta-value {
+      color: #f0f0f4;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .button {
+      position: relative;
+      display: inline-flex;
+      min-height: 52px;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 0 24px;
+      border: 1px solid transparent;
+      border-radius: 2px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.2s ease;
+    }
+
+    .button:hover {
+      transform: translateY(-2px);
+    }
+
+    .button:active {
+      transform: translateY(0);
+    }
+
+    .button-primary {
+      color: white;
+      background: var(--red);
+      box-shadow: 0 8px 32px rgba(237, 52, 75, 0.16);
+    }
+
+    .button-primary:hover {
+      background: #ff4058;
+      box-shadow: 0 8px 36px rgba(237, 52, 75, 0.28);
+    }
+
+    .button-secondary {
+      color: #d9dbe4;
+      border-color: var(--border);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .button-secondary:hover {
+      border-color: rgba(255, 255, 255, 0.28);
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .button-full {
+      width: 100%;
+    }
+
+    .button-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+
+    .button-row .button {
+      flex: 1;
+    }
+
+    .footer-note {
+      margin-top: 24px;
+      color: #666a78;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      line-height: 1.8;
+      text-transform: uppercase;
+    }
+
+    /* HUD */
+
+    #hud {
+      position: fixed;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .hud-top {
+      position: absolute;
+      top: 0;
+      right: 0;
+      left: 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 24px 30px;
+      background: linear-gradient(
+        180deg,
+        rgba(0, 0, 0, 0.68),
+        transparent
+      );
+    }
+
+    .hud-brand {
+      color: #f0f0f5;
+      font-size: 14px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+    }
+
+    .hud-brand span {
+      color: var(--red);
+    }
+
+    .hud-caption {
+      margin-top: 7px;
+      color: #8c909e;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .hud-clock {
+      color: #f5f5f7;
+      font-family: var(--mono);
+      font-size: clamp(25px, 4vw, 38px);
+      line-height: 1;
+      text-align: right;
+      text-shadow: 0 0 20px rgba(255, 255, 255, 0.12);
+      animation: flicker 8s infinite;
+    }
+
+    .hud-clock-label {
+      margin-top: 8px;
+      color: #a4a6b1;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-align: right;
+    }
+
+    .hud-left {
+      position: absolute;
+      top: 112px;
+      left: 30px;
+      width: min(260px, calc(100vw - 60px));
+    }
+
+    .hud-section-label {
+      margin-bottom: 10px;
+      color: #8d91a0;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+
+    .hud-objective {
+      padding: 14px 16px;
+      border-left: 2px solid var(--red);
+      background: rgba(7, 8, 12, 0.7);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .hud-objective-title {
+      margin-bottom: 6px;
+      color: #f1f1f5;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .hud-objective-text {
+      color: #a0a3b0;
+      font-size: 11px;
+      line-height: 1.7;
+    }
+
+    .hud-bottom {
+      position: absolute;
+      right: 30px;
+      bottom: 24px;
+      left: 30px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .hud-stats {
+      display: flex;
+      width: min(520px, 65vw);
+      gap: 24px;
+      padding: 16px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      background: rgba(7, 8, 12, 0.76);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .hud-stat {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .hud-stat-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 10px;
+      color: #a4a7b4;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .hud-stat-value {
+      color: white;
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+
+    .bar {
+      height: 4px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .bar-fill {
+      width: 100%;
+      height: 100%;
+      background: var(--green);
+      transition:
+        width 0.35s ease,
+        background 0.35s ease;
+    }
+
+    #progress-fill {
+      width: 0%;
+      background: var(--red);
+    }
+
+    .hud-report {
+      color: #d1d3dd;
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.8;
+      text-align: right;
+      text-transform: uppercase;
+    }
+
+    .hud-report strong {
+      color: white;
+      font-size: 19px;
+      font-weight: 400;
+    }
+
+    .hud-hint {
+      position: absolute;
+      bottom: 120px;
+      left: 50%;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      max-width: calc(100vw - 30px);
+      padding: 12px 18px;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      background: rgba(7, 8, 12, 0.8);
+      color: #dfe0e7;
+      font-size: 11px;
+      letter-spacing: 0.05em;
+      text-align: center;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .hud-hint.visible {
+      opacity: 1;
+    }
+
+    .key {
+      display: inline-flex;
+      min-width: 26px;
+      height: 26px;
+      align-items: center;
+      justify-content: center;
+      padding: 0 7px;
+      border: 1px solid rgba(255, 255, 255, 0.24);
+      border-radius: 2px;
+      color: white;
+      background: rgba(255, 255, 255, 0.06);
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+
+    .crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 18px;
+      height: 18px;
+      opacity: 0.8;
+      transform: translate(-50%, -50%);
+    }
+
+    .crosshair::before,
+    .crosshair::after {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      display: block;
+      content: "";
+      background: rgba(255, 255, 255, 0.8);
+      transform: translate(-50%, -50%);
+    }
+
+    .crosshair::before {
+      width: 2px;
+      height: 18px;
+    }
+
+    .crosshair::after {
+      width: 18px;
+      height: 2px;
+    }
+
+    .hud-pause {
+      position: absolute;
+      top: 95px;
+      right: 30px;
+      width: 38px;
+      height: 38px;
+      pointer-events: auto;
+      border: 1px solid rgba(255, 255, 255, 0.17);
+      color: white;
+      background: rgba(0, 0, 0, 0.35);
+      cursor: pointer;
+      font-size: 16px;
+      transition: background 0.2s ease;
+    }
+
+    .hud-pause:hover {
+      background: rgba(237, 52, 75, 0.35);
+    }
+
+    /* Пауза */
+
+    .pause-title {
+      margin: 0;
+      font-size: clamp(40px, 7vw, 66px);
+      font-weight: 900;
+      letter-spacing: -0.06em;
+      text-transform: uppercase;
+    }
+
+    .pause-title span {
+      color: var(--red);
+    }
+
+    .controls-list {
+      display: grid;
+      gap: 12px;
+      margin: 28px 0;
+      padding: 20px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 15px;
+      color: #b7bac6;
+      font-size: 12px;
+    }
+
+    .control-keys {
+      display: flex;
+      gap: 5px;
+    }
+
+    /* Итоги */
+
+    .result-score {
+      margin: 26px 0;
+      color: white;
+      font-family: var(--mono);
+      font-size: clamp(44px, 9vw, 72px);
+      line-height: 1;
+    }
+
+    .result-score small {
+      color: var(--red);
+      font-size: 14px;
+      letter-spacing: 0.1em;
+    }
+
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin: 24px 0;
+    }
+
+    .result-card {
+      padding: 17px 12px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .result-number {
+      color: white;
+      font-family: var(--mono);
+      font-size: 26px;
+    }
+
+    .result-label {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 10px;
+      line-height: 1.5;
+      text-transform: uppercase;
+    }
+
+    .result-message {
+      color: #a5a8b4;
+      font-size: 13px;
+      line-height: 1.8;
+    }
+
+    /* Мобильные экраны */
+
+    @media (max-width: 700px) {
+      .screen {
+        align-items: flex-start;
+        padding: 28px 20px;
+      }
+
+      .screen-content {
+        margin: auto 0;
+      }
+
+      .logo {
+        font-size: clamp(42px, 12vw, 68px);
+      }
+
+      .subtitle {
+        font-size: 11px;
+      }
+
+      .intro {
+        font-size: 13px;
+      }
+
+      .menu-meta {
+        gap: 6px;
+      }
+
+      .meta-card {
+        padding: 10px 8px;
+      }
+
+      .meta-label {
+        font-size: 9px;
+      }
+
+      .meta-value {
+        font-size: 12px;
+      }
+
+      .hud-top {
+        padding: 17px 16px;
+      }
+
+      .hud-brand {
+        font-size: 12px;
+      }
+
+      .hud-caption {
+        font-size: 9px;
+      }
+
+      .hud-clock {
+        font-size: 26px;
+      }
+
+      .hud-left {
+        top: 90px;
+        left: 16px;
+        width: 205px;
+      }
+
+      .hud-pause {
+        top: 92px;
+        right: 16px;
+      }
+
+      .hud-objective {
+        padding: 10px 12px;
+      }
+
+      .hud-objective-title {
+        font-size: 11px;
+      }
+
+      .hud-objective-text {
+        font-size: 10px;
+      }
+
+      .hud-bottom {
+        right: 12px;
+        bottom: 12px;
+        left: 12px;
+        align-items: stretch;
+        gap: 8px;
+      }
+
+      .hud-stats {
+        width: auto;
+        flex: 1;
+        flex-direction: column;
+        gap: 12px;
+        padding: 12px;
+      }
+
+      .hud-stat-head {
+        margin-bottom: 6px;
+        font-size: 9px;
+      }
+
+      .hud-report {
+        min-width: 80px;
+        align-self: flex-end;
+        font-size: 9px;
+      }
+
+      .hud-report strong {
+        font-size: 16px;
+      }
+
+      .hud-hint {
+        bottom: 172px;
+        width: max-content;
+        font-size: 10px;
+      }
+
+      .result-grid {
+        gap: 6px;
+      }
+
+      .result-card {
+        padding: 12px 8px;
+      }
+
+      .result-number {
+        font-size: 22px;
+      }
+
+      .button {
+        min-height: 48px;
+        padding: 0 15px;
+        font-size: 11px;
+      }
+    }
+
+    @media (max-height: 650px) {
+      .screen {
+        align-items: flex-start;
+        padding-top: 20px;
+        padding-bottom: 20px;
+      }
+
+      .screen-content {
+        margin: auto 0;
+      }
+
+      .eyebrow {
+        margin-bottom: 14px;
+      }
+
+      .intro {
+        margin-top: 15px;
+      }
+
+      .menu-divider {
+        margin: 18px 0;
+      }
+
+      .menu-meta {
+        margin: 16px 0;
+      }
+
+      .footer-note {
+        margin-top: 14px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
 </head>
+
 <body>
-  <main id="game">
-    <div id="hud" class="hud hidden">
-      <header class="topbar">
-        <div class="logo">D<span>:</span>13 <small>SECURITY SYSTEM</small></div>
-        <div class="shift-status">
-          <span class="live-dot"></span>
-          <span>НОЧНАЯ СМЕНА</span>
-          <strong id="clock">10:00</strong>
-        </div>
-        <button id="pause-button" class="icon-button" aria-label="Пауза">Ⅱ</button>
-      </header>
+  <main id="game" aria-label="Игровая сцена"></main>
 
-      <section class="mission">
-        <span class="eyebrow">ТЕКУЩЕЕ ЗАДАНИЕ</span>
-        <div id="objective">Осмотри помещение и сообщай об аномалиях.</div>
-        <div class="mission-progress">
-          <div id="progress-fill"></div>
-        </div>
-        <div class="progress-label">
-          <span>ОТЧЁТЫ</span>
-          <span id="report-count">0 принято</span>
-        </div>
-      </section>
+  <div class="vignette"></div>
+  <div class="scanlines"></div>
+  <div class="noise"></div>
 
-      <div class="crosshair"><span></span></div>
-      <div id="prompt" class="interaction-prompt"></div>
+  <!-- СТАРТОВОЕ МЕНЮ -->
+  <section id="start-screen" class="screen">
+    <div class="screen-content">
+      <div class="eyebrow">
+        <span class="status-dot"></span>
+        Система наблюдения активна
+      </div>
 
-      <div id="alert" class="alert hidden">
-        <span class="alert-icon">!</span>
-        <div>
-          <strong id="alert-title">ОБНАРУЖЕНА АНОМАЛИЯ</strong>
-          <p id="message"></p>
+      <h1 class="logo">
+        DEADLINE<span>:</span><br />
+        13
+      </h1>
+
+      <p class="subtitle">
+        Ночная смена · Корпус B · 00:00
+      </p>
+
+      <p class="intro">
+        Ты остался один в офисе после полуночи.
+        Камеры молчат, коридоры пусты, а привычные вещи
+        начинают вести себя неправильно.
+        <br /><br />
+        Осматривай помещение. Находи то, что изменилось.
+        Не доверяй собственным глазам.
+      </p>
+
+      <div class="menu-divider"></div>
+
+      <div class="menu-meta">
+        <div class="meta-card">
+          <div class="meta-label">Смена</div>
+          <div class="meta-value">13 часов</div>
+        </div>
+
+        <div class="meta-card">
+          <div class="meta-label">Угроза</div>
+          <div class="meta-value">Неизвестна</div>
+        </div>
+
+        <div class="meta-card">
+          <div class="meta-label">Протокол</div>
+          <div class="meta-value">Наблюдение</div>
         </div>
       </div>
 
-      <footer class="bottom-hud">
-        <div class="sanity-panel">
-          <div class="sanity-heading">
-            <span>ПСИХИЧЕСКОЕ СОСТОЯНИЕ</span>
-            <strong id="sanity-value">100%</strong>
-          </div>
-          <div class="sanity-track"><div id="sanity"></div></div>
+      <button id="start-button" class="button button-primary button-full">
+        <span>▶</span>
+        Начать смену
+      </button>
+
+      <div class="footer-note">
+        WASD — движение · Мышь — осмотр · E — обнаружить аномалию
+        <br />
+        Рекомендуется играть в наушниках
+      </div>
+    </div>
+  </section>
+
+  <!-- ИГРОВОЙ ИНТЕРФЕЙС -->
+  <section id="hud" class="hidden" aria-label="Игровой интерфейс">
+    <header class="hud-top">
+      <div>
+        <div class="hud-brand">DEADLINE<span>: 13</span></div>
+        <div class="hud-caption">
+          Сектор 04 / Административный корпус
         </div>
-        <div class="controls">
-          <span><kbd>W A S D</kbd> Движение</span>
-          <span><kbd>МЫШЬ</kbd> Осмотр</span>
-          <span><kbd>E</kbd> Проверить</span>
-          <span><kbd>R</kbd> Сообщить</span>
+      </div>
+
+      <div>
+        <div id="clock" class="hud-clock">00:00</div>
+        <div class="hud-clock-label">Время смены</div>
+      </div>
+    </header>
+
+    <button
+      id="pause-button"
+      class="hud-pause"
+      type="button"
+      aria-label="Пауза"
+      title="Пауза (Esc)"
+    >Ⅱ</button>
+
+    <aside class="hud-left">
+      <div class="hud-section-label">Текущая задача</div>
+
+      <div class="hud-objective">
+        <div class="hud-objective-title">
+          Осмотри помещение
         </div>
-      </footer>
+
+        <div id="objective" class="hud-objective-text">
+          Ищи несоответствия. Обнаруженные аномалии исчезают.
+        </div>
+      </div>
+    </aside>
+
+    <div class="crosshair" aria-hidden="true"></div>
+
+    <div id="prompt" class="hud-hint" role="status" aria-live="polite">
+      <span class="key">E</span>
+      <span>Обнаружить аномалию</span>
     </div>
 
-    <section id="start-screen" class="screen">
-      <div class="start-content">
-        <div class="system-label"><span class="live-dot"></span> СИСТЕМА БЕЗОПАСНОСТИ · ONLINE</div>
-        <h1 class="game-title">DEADLINE<span>:13</span></h1>
-        <p class="tagline">Некоторые вещи лучше не замечать.</p>
+    <footer class="hud-bottom">
+      <div class="hud-stats">
+        <div class="hud-stat">
+          <div class="hud-stat-head">
+            <span>Рассудок</span>
+            <span id="sanity-value" class="hud-stat-value">100%</span>
+          </div>
 
-        <div class="briefing">
-          <div class="briefing-icon">▤</div>
-          <div>
-            <strong>ИНСТРУКТАЖ ПЕРЕД СМЕНОЙ</strong>
-            <p>Осматривай офис, замечай изменения и отправляй отчёты. Ложные сообщения ухудшают твоё состояние.</p>
+          <div class="bar">
+            <div id="sanity" class="bar-fill"></div>
           </div>
         </div>
 
-        <button id="start-button" class="primary-button">
-          <span>НАЧАТЬ СМЕНУ</span><span class="button-arrow">→</span>
-        </button>
-        <p class="start-note">10 МИНУТ · WASD · МЫШЬ · E / R</p>
-      </div>
-      <div class="screen-decoration decoration-one"></div>
-      <div class="screen-decoration decoration-two"></div>
-    </section>
+        <div class="hud-stat">
+          <div class="hud-stat-head">
+            <span>Прогресс смены</span>
+            <span id="progress-value" class="hud-stat-value">0%</span>
+          </div>
 
-    <section id="pause-screen" class="screen hidden">
-      <div class="modal-card">
-        <span class="eyebrow">ПРОТОКОЛ 13</span>
-        <h2>Смена приостановлена</h2>
-        <p>Офис всё ещё ждёт тебя.</p>
-        <button id="resume-button" class="primary-button">ПРОДОЛЖИТЬ</button>
-        <button id="quit-button" class="secondary-button">ЗАВЕРШИТЬ СМЕНУ</button>
-      </div>
-    </section>
-
-    <section id="report-screen" class="screen hidden">
-      <div class="modal-card result-card">
-        <span class="eyebrow">ОТЧЁТ СИСТЕМЫ</span>
-        <h2 id="report-title">СМЕНА ЗАВЕРШЕНА</h2>
-        <p id="report-text"></p>
-        <div class="result-stats">
-          <div><strong id="result-correct">0</strong><span>Отчёты</span></div>
-          <div><strong id="result-errors">0</strong><span>Ошибки</span></div>
-          <div><strong id="result-score">0</strong><span>Очки</span></div>
+          <div class="bar">
+            <div id="progress-fill" class="bar-fill"></div>
+          </div>
         </div>
-        <button id="restart-button" class="primary-button">НОВАЯ СМЕНА →</button>
       </div>
-    </section>
-  </main>
+
+      <div class="hud-report">
+        Аномалии обнаружены
+        <br />
+        <strong id="report-count">0</strong>
+      </div>
+    </footer>
+  </section>
+
+  <!-- МЕНЮ ПАУЗЫ -->
+  <section id="pause-screen" class="screen hidden">
+    <div class="screen-content">
+      <div class="eyebrow">
+        <span class="status-dot"></span>
+        Система приостановлена
+      </div>
+
+      <h2 class="pause-title">ПАУ<span>У</span>ЗА</h2>
+
+      <p class="intro">
+        В офисе по-прежнему кто-то есть.
+        Не задерживайся слишком долго.
+      </p>
+
+      <div class="controls-list">
+        <div class="control-row">
+          <span>Перемещение</span>
+          <span class="control-keys">
+            <span class="key">W</span>
+            <span class="key">A</span>
+            <span class="key">S</span>
+            <span class="key">D</span>
+          </span>
+        </div>
+
+        <div class="control-row">
+          <span>Осмотр</span>
+          <span class="key">Мышь</span>
+        </div>
+
+        <div class="control-row">
+          <span>Обнаружить аномалию</span>
+          <span class="key">E</span>
+        </div>
+
+        <div class="control-row">
+          <span>Пауза / продолжить</span>
+          <span class="key">ESC</span>
+        </div>
+      </div>
+
+      <div class="button-row">
+        <button id="resume-button" class="button button-primary">
+          Продолжить
+        </button>
+
+        <button id="quit-button" class="button button-secondary">
+          Завершить
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ЭКРАН РЕЗУЛЬТАТОВ -->
+  <section id="report-screen" class="screen hidden">
+    <div class="screen-content">
+      <div class="eyebrow">
+        <span class="status-dot"></span>
+        Отчёт системы наблюдения
+      </div>
+
+      <h2 id="report-title" class="logo">
+        СМЕНА<br />
+        <span>ЗАВЕРШЕНА</span>
+      </h2>
+
+      <p id="report-text" class="intro">
+        Система сформировала итоговый отчёт.
+      </p>
+
+      <div class="result-score">
+        <span id="result-score">0</span>
+        <small>ОЧКОВ</small>
+      </div>
+
+      <div class="result-grid">
+        <div class="result-card">
+          <div id="result-correct" class="result-number">0</div>
+          <div class="result-label">Обнаружено аномалий</div>
+        </div>
+
+        <div class="result-card">
+          <div id="result-errors" class="result-number">0</div>
+          <div class="result-label">Ошибки</div>
+        </div>
+
+        <div class="result-card">
+          <div id="result-sanity" class="result-number">100%</div>
+          <div class="result-label">Остаток рассудка</div>
+        </div>
+      </div>
+
+      <div class="menu-divider"></div>
+
+      <button id="restart-button" class="button button-primary button-full">
+        Играть снова
+      </button>
+
+      <div class="footer-note">
+        DEADLINE: 13 · Отчёт сформирован автоматически
+      </div>
+    </div>
+  </section>
 
   <script type="module" src="./game.js"></script>
 </body>
 </html>
+```
