@@ -1,0 +1,60 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DEADLINE: 13</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div id="game">
+    <div id="hud">
+      <div class="hud-top">
+        <div class="brand">DEADLINE<span>: 13</span></div>
+        <div class="shift">
+          СМЕНА <b id="shift">01</b>
+          <span id="clock">10:00</span>
+        </div>
+      </div>
+
+      <div id="objective">ПРОВЕРЬ ОФИС. НЕ ДОВЕРЯЙ ГЛАЗАМ.</div>
+      <div id="crosshair">+</div>
+      <div id="prompt"></div>
+      <div id="message"></div>
+
+      <div class="hud-bottom">
+        <span>WASD — ДВИЖЕНИЕ</span>
+        <span>МЫШЬ — ОБЗОР</span>
+        <span>E — ВЗАИМОДЕЙСТВИЕ</span>
+      </div>
+    </div>
+
+    <div id="start-screen" class="screen">
+      <div class="title">DEADLINE<span>: 13</span></div>
+      <p class="subtitle">НОЧНАЯ СМЕНА · 00:00—06:00</p>
+      <p class="story">
+        Тебе оставили простой список инструкций.<br>
+        Если что-то изменилось — сообщи об аномалии.<br>
+        Если ничего не изменилось — проверь ещё раз.
+      </p>
+      <button id="start-button">НАЧАТЬ СМЕНУ</button>
+      <p class="hint">Рекомендуется играть в наушниках.</p>
+    </div>
+
+    <div id="report-screen" class="screen hidden">
+      <h1 id="report-title">СМЕНА ЗАВЕРШЕНА</h1>
+      <p id="report-text"></p>
+      <p id="report-score"></p>
+      <button id="restart-button">НОВАЯ СМЕНА</button>
+    </div>
+
+    <div id="sanity-wrap">
+      <span>СОСТОЯНИЕ</span>
+      <div class="sanity-bar"><div id="sanity"></div></div>
+    </div>
+  </div>
+
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
