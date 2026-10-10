@@ -1,0 +1,450 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>YESTERDAY ME — Alpha 0.1</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#080b12;color:#effaff;font-family:system-ui,Arial,sans-serif;overflow:hidden}
+#game{display:block;width:100vw;height:100dvh;touch-action:none}
+#ui{position:fixed;inset:0;pointer-events:none}
+.panel{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(540px,92vw);padding:30px;background:#0b1423f5;border:1px solid #314458;box-shadow:0 20px 80px #0009;pointer-events:auto}
+h1{font-size:clamp(35px,7vw,64px);line-height:.95;letter-spacing:-3px;margin:15px 0}
+h1 span{color:#69f5ee}
+p{font-size:14px;line-height:1.65;color:#a9bbcf}
+.tag{font-size:11px;letter-spacing:3px;color:#69f5ee;font-weight:bold}
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;color:#bdccdb;margin:22px 0}
+.controls b{color:#fff}
+button{border:1px solid #3a5065;background:#142234;color:#fff;padding:12px 18px;font-weight:bold;font-size:11px;letter-spacing:1px;cursor:pointer}
+button.primary{background:#69f5ee;color:#061316;border-color:#69f5ee}
+button:hover{filter:brightness(1.15)}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.hidden{display:none!important}
+#hud{display:flex;justify-content:space-between;gap:8px;padding:18px}
+.info{padding:9px 12px;background:#09121cdd;border:1px solid #2c4054;font-size:12px}
+.info small{display:block;color:#8199af;font-size:9px;letter-spacing:2px;margin-bottom:4px}
+#toast{position:absolute;top:22%;left:50%;transform:translateX(-50%);padding:11px 16px;background:#0b1524;border:1px solid #69f5ee;color:#69f5ee;font-size:11px;font-weight:bold;white-space:nowrap;opacity:0;transition:opacity .2s}
+#touch{position:absolute;bottom:15px;left:15px;right:15px;display:none;justify-content:space-between;pointer-events:auto}
+.touchgroup{display:flex;gap:8px}
+.touchgroup button{width:56px;height:50px;padding:0;font-size:18px;touch-action:none;background:#102034dd}
+@media(pointer:coarse){#touch{display:flex}#hud{padding:8px}.info{padding:7px;font-size:10px}}
+@media(max-width:420px){.controls{grid-template-columns:1fr}.panel{padding:22px}}
+</style>
+</head>
+<body>
+<canvas id="game" width="1280" height="720"></canvas>
+<div id="ui">
+  <div id="hud" class="hidden">
+    <div class="info"><small>LEVEL</small><span id="level">01</span></div>
+    <div class="info"><small>ATTEMPT TIME</small><span id="time">00:00.0</span></div>
+    <div class="info"><small>ECHOES</small><span id="count">0 / 3</span></div>
+  </div>
+  <div id="toast"></div>
+  <div id="menu" class="panel">
+    <div class="tag">ALPHA 0.1 / TIME LOOP</div>
+    <h1>YESTERDAY<br><span>ME.</span></h1>
+    <p>Твои прошлые попытки становятся призраками. Запиши движение, оставь эхо на кнопке и используй его, чтобы открыть дверь.</p>
+    <div class="controls">
+      <div><b>A / D</b> — движение</div>
+      <div><b>SPACE</b> — прыжок</div>
+      <div><b>E</b> — создать эхо</div>
+      <div><b>R</b> — перезапуск</div>
+      <div><b>ESC</b> — пауза</div>
+      <div><b>ENTER</b> — продолжить</div>
+    </div>
+    <button class="primary" id="play">PLAY</button>
+  </div>
+  <div id="pause" class="panel hidden">
+    <div class="tag">SIMULATION HALTED</div><h1>PAUSED<span>.</span></h1>
+    <p>Время остановлено. Эхо тоже замерли.</p>
+    <div class="actions"><button class="primary" id="resume">RESUME</button><button id="retry">RETRY</button><button id="home">MAIN MENU</button></div>
+  </div>
+  <div id="clear" class="panel hidden">
+    <div class="tag">MEMORY ARCHIVED</div><h1>LEVEL<br><span>CLEAR.</span></h1>
+    <p id="clearText">Уровень пройден.</p>
+    <div class="actions"><button class="primary" id="next">CONTINUE</button><button id="clearHome">MAIN MENU</button></div>
+  </div>
+  <div id="win" class="panel hidden">
+    <div class="tag">ALL LOOPS COMPLETE</div><h1>YESTERDAY<br><span>ME.</span></h1>
+    <p>Все три уровня пройдены. Будущее построено на действиях, которые ты уже совершил.</p>
+    <div class="actions"><button class="primary" id="again">PLAY AGAIN</button><button id="winHome">MAIN MENU</button></div>
+  </div>
+  <div id="touch">
+    <div class="touchgroup"><button data-key="left">◀</button><button data-key="right">▶</button></div>
+    <div class="touchgroup"><button data-key="jump">↑</button><button data-key="record">ECHO</button></div>
+  </div>
+</div>
+<script>
+"use strict";
+
+const canvas=document.querySelector("#game");
+const ctx=canvas.getContext("2d");
+const W=1280,H=720,STEP=1/120,MAX_ECHOES=3;
+const $=id=>document.getElementById(id);
+const screens=["menu","pause","clear","win","hud"];
+let state="menu",levelIndex=0,world=null,last=0,acc=0;
+let elapsed=0,toastTimer=0,particles=[],bgTime=0;
+const input={left:false,right:false,jump:false,jumpPressed:false};
+
+function showScreen(name){
+  screens.forEach(id=>$(id).classList.add("hidden"));
+  if(name)$(name).classList.remove("hidden");
+}
+function toast(text){
+  $("toast").textContent=text;
+  $("toast").style.opacity=1;
+  toastTimer=2;
+}
+function overlap(a,b){
+  return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+}
+function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
+
+class Platform{
+  constructor(x,y,w,h=22){Object.assign(this,{x,y,w,h})}
+  draw(){
+    ctx.fillStyle="#171f2c";ctx.fillRect(this.x,this.y,this.w,this.h);
+    ctx.fillStyle="#35485c";ctx.fillRect(this.x,this.y,this.w,3);
+    ctx.fillStyle="#0c111a";
+    for(let x=this.x+10;x<this.x+this.w;x+=28)
+      ctx.fillRect(x,this.y+this.h-5,9,2);
+  }
+}
+class Switch{
+  constructor(id,x,y,w=64){Object.assign(this,{id,x,y,w,h:12,active:false,press:0})}
+  draw(){
+    const c=this.active?"#62f4b1":"#ce5268";
+    ctx.save();ctx.shadowColor=c;ctx.shadowBlur=this.active?18:0;
+    ctx.fillStyle=c;ctx.fillRect(this.x,this.y+this.press*4,this.w,this.h);
+    ctx.restore();
+  }
+}
+class Door{
+  constructor(x,y,w,h,needs){Object.assign(this,{x,y,w,h,needs,open:false,amount:0})}
+  draw(){
+    ctx.save();
+    ctx.globalAlpha=1-this.amount*.92;
+    ctx.fillStyle=this.open?"#62f4b1":"#f05d72";
+    ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=12;
+    ctx.fillRect(this.x,this.y+this.amount*this.h,this.w,this.h*(1-this.amount));
+    ctx.shadowBlur=0;ctx.fillStyle="#111824";
+    for(let y=this.y+12;y<this.y+this.h*(1-this.amount);y+=22)
+      ctx.fillRect(this.x+6,y,this.w-12,3);
+    ctx.restore();
+  }
+}
+class Player{
+  constructor(x,y){
+    Object.assign(this,{x,y,w:26,h:42,vx:0,vy:0,grounded:false,facing:1});
+  }
+  update(dt,platforms){
+    const dir=(input.right?1:0)-(input.left?1:0);
+    this.vx+=dir*(this.grounded?1900:1250)*dt;
+    if(!dir)this.vx*=Math.pow(this.grounded?.0008:.25,dt);
+    this.vx=clamp(this.vx,-270,270);
+    if(dir)this.facing=dir;
+    if(input.jumpPressed&&this.grounded){
+      this.vy=-520;this.grounded=false;
+    }
+    input.jumpPressed=false;
+    this.vy=Math.min(950,this.vy+1500*dt);
+    moveBody(this,dt,platforms);
+    this.x=clamp(this.x,0,W-this.w);
+  }
+  draw(ghost=false,alpha=1){
+    ctx.save();ctx.globalAlpha=alpha;
+    ctx.fillStyle=ghost?"#65eaff":"#eaffff";
+    ctx.shadowColor=ghost?"#58eaff":"#75fff4";ctx.shadowBlur=ghost?20:10;
+    ctx.fillRect(this.x+4,this.y+7,this.w-8,this.h-7);
+    ctx.fillRect(this.x,this.y+18,this.w,15);
+    ctx.shadowBlur=0;ctx.fillStyle=ghost?"#ffffff":"#0d1b26";
+    ctx.fillRect(this.x+(this.facing>0?16:5),this.y+15,4,4);
+    ctx.restore();
+  }
+}
+function moveBody(b,dt,platforms){
+  b.x+=b.vx*dt;
+  for(const p of platforms){
+    if(overlap(b,p)){
+      if(b.vx>0)b.x=p.x-b.w;
+      else if(b.vx<0)b.x=p.x+p.w;
+      b.vx=0;
+    }
+  }
+  b.y+=b.vy*dt;b.grounded=false;
+  for(const p of platforms){
+    if(overlap(b,p)){
+      if(b.vy>0){b.y=p.y-b.h;b.grounded=true}
+      else if(b.vy<0)b.y=p.y+p.h;
+      b.vy=0;
+    }
+  }
+}
+class Echo{
+  constructor(frames){
+    this.frames=frames;this.index=0;
+    Object.assign(this,{x:frames[0].x,y:frames[0].y,w:26,h:42,facing:1,alpha:0});
+  }
+  update(){
+    if(this.index<this.frames.length){
+      const f=this.frames[this.index++];
+      this.x=f.x;this.y=f.y;this.facing=f.facing;
+    }
+    this.alpha=Math.min(1,this.alpha+.05);
+  }
+  draw(){
+    ctx.save();ctx.globalAlpha=.42*this.alpha;
+    ctx.fillStyle="#65eaff";ctx.shadowColor="#58eaff";ctx.shadowBlur=20;
+    ctx.fillRect(this.x+4,this.y+7,this.w-8,this.h-7);
+    ctx.fillRect(this.x,this.y+18,this.w,15);
+    ctx.restore();
+  }
+}
+function makeLevel(n){
+  const l={
+    title:["01 / FIRST ECHO","02 / TWO AGAINST THE DOOR","03 / LAST ATTEMPT"][n],
+    platforms:[new Platform(0,654,1280,66)],
+    switches:[],doors:[],hazards:[],
+    spawn:{x:55,y:612},exit:{x:1190,y:584,w:40,h:70}
+  };
+  if(n===0){
+    l.platforms.push(new Platform(230,570,260),new Platform(550,570,220),new Platform(820,570,290));
+    l.switches.push(new Switch("A",365,558));
+    l.doors.push(new Door(1060,490,30,164,["A"]));
+  }else if(n===1){
+    l.platforms.push(new Platform(190,575,220),new Platform(445,515,180),new Platform(665,575,210),new Platform(910,545,240));
+    l.switches.push(new Switch("A",280,563),new Switch("B",740,563));
+    l.doors.push(new Door(1050,490,30,164,["A","B"]));
+  }else{
+    l.platforms.push(new Platform(160,570,180),new Platform(375,500,165),new Platform(575,430,165),new Platform(775,500,165),new Platform(960,570,180));
+    l.switches.push(new Switch("A",220,558),new Switch("B",820,488));
+    l.doors.push(new Door(1080,490,30,164,["A","B"]));
+    l.hazards.push({x:350,y:641,w:430,h:13});
+    l.spawn={x:45,y:612};
+  }
+  return l;
+}
+class LevelManager{
+  constructor(n){
+    this.n=n;this.level=makeLevel(n);this.echoes=[];
+    this.player=new Player(this.level.spawn.x,this.level.spawn.y);
+    this.record=[];this.recording=true;this.attempt=0;this.completed=false;
+    this.updateMechanisms();
+  }
+  reset(){
+    this.level=makeLevel(this.n);this.echoes=[];
+    this.player=new Player(this.level.spawn.x,this.level.spawn.y);
+    this.record=[];this.recording=true;this.attempt=0;this.completed=false;
+    elapsed=0;particles=[];this.updateMechanisms();
+    toast("ATTEMPT RESET");
+  }
+  finishRecord(){
+    if(this.echoes.length>=MAX_ECHOES){toast("ECHO LIMIT REACHED · 3 / 3");return}
+    if(this.record.length<10){toast("RECORD MORE MOVEMENT FIRST");return}
+    const frames=this.record.map(f=>({...f}));
+    this.echoes.push(new Echo(frames));
+    this.record=[];
+    this.player=new Player(this.level.spawn.x,this.level.spawn.y);
+    burst(frames[frames.length-1].x+12,frames[frames.length-1].y+20);
+    toast("ECHO CREATED · "+this.echoes.length+" / 3");
+  }
+  updateMechanisms(){
+    for(const s of this.level.switches){
+      const actors=[this.player,...this.echoes];
+      s.active=actors.some(a=>overlap(
+        {x:a.x,y:a.y+a.h-5,w:a.w,h:8},
+        {x:s.x,y:s.y-1,w:s.w,h:s.h+3}
+      ));
+      s.press+=( (s.active?1:0)-s.press)*.3;
+    }
+    for(const d of this.level.doors){
+      d.open=d.needs.every(id=>this.level.switches.find(s=>s.id===id)?.active);
+      d.amount+=( (d.open?1:0)-d.amount)*.14;
+    }
+  }
+  update(dt){
+    if(this.completed)return;
+    elapsed+=dt;this.attempt+=dt;
+    this.player.update(dt,this.level.platforms);
+    for(const e of this.echoes)e.update();
+    if(this.recording)this.record.push({
+      x:this.player.x,y:this.player.y,facing:this.player.facing
+    });
+    this.updateMechanisms();
+    for(const h of this.level.hazards){
+      if(overlap(this.player,h)){this.reset();return}
+    }
+    if(overlap(this.player,this.level.exit)&&this.level.doors.every(d=>d.open)){
+      this.completed=true;finishLevel(this.n);
+    }
+  }
+}
+class Renderer{
+  draw(m){
+    const c=ctx;
+    const g=c.createLinearGradient(0,0,0,H);
+    g.addColorStop(0,"#0c1422");g.addColorStop(1,"#080b12");
+    c.fillStyle=g;c.fillRect(0,0,W,H);
+    c.strokeStyle="#162536";c.lineWidth=1;
+    for(let x=0;x<W;x+=64){c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke()}
+    for(let y=40;y<H;y+=64){c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke()}
+    for(let i=0;i<42;i++){
+      const x=(i*173+Math.sin(bgTime*.3+i)*12)%W,y=(i*97)%520;
+      c.globalAlpha=.3;c.fillStyle="#58758c";c.fillRect(x,y,3,3);
+    }
+    c.globalAlpha=1;
+    for(const p of m.level.platforms)p.draw();
+    for(const h of m.level.hazards){
+      c.fillStyle="#e84465";c.shadowColor="#ff315e";c.shadowBlur=12;
+      c.fillRect(h.x,h.y,h.w,h.h);c.shadowBlur=0;
+      for(let x=h.x;x<h.x+h.w;x+=22){
+        c.fillStyle="#ff9bab";c.beginPath();
+        c.moveTo(x,h.y);c.lineTo(x+11,h.y-8);c.lineTo(x+22,h.y);c.fill();
+      }
+    }
+    for(const s of m.level.switches)s.draw();
+    for(const d of m.level.doors)d.draw();
+    const e=m.level.exit;
+    c.save();c.strokeStyle=m.level.doors.every(d=>d.open)?"#62f4b1":"#63778d";
+    c.lineWidth=3;c.shadowColor=c.strokeStyle;c.shadowBlur=12;
+    c.strokeRect(e.x,e.y,e.w,e.h);
+    c.fillStyle="#a6fff4";c.globalAlpha=.2+Math.sin(bgTime*3)*.1;
+    c.fillRect(e.x+7,e.y+7,e.w-14,e.h-14);c.restore();
+    for(const echo of m.echoes)echo.draw();
+    m.player.draw();
+    c.fillStyle="#61758b";c.font="11px monospace";
+    c.fillText("MEMORY IS A MECHANISM",24,692);
+  }
+}
+const renderer=new Renderer();
+function burst(x,y){
+  for(let i=0;i<30;i++)particles.push({
+    x,y,vx:(Math.random()-.5)*240,vy:(Math.random()-.7)*260,
+    life:.4+Math.random()*.5,max:.9
+  });
+}
+function updateParticles(dt){
+  particles=particles.filter(p=>p.life>0);
+  for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=200*dt;p.life-=dt}
+}
+function drawParticles(){
+  for(const p of particles){
+    ctx.globalAlpha=clamp(p.life/p.max,0,1);
+    ctx.fillStyle="#70f6ff";ctx.fillRect(p.x,p.y,3,3);
+  }
+  ctx.globalAlpha=1;
+}
+function startGame(n=0){
+  levelIndex=n;world=new LevelManager(n);state="playing";
+  elapsed=0;acc=0;particles=[];showScreen("hud");updateHud();
+  last=performance.now();
+}
+function updateHud(){
+  if(!world)return;
+  $("level").textContent=world.level.title;
+  $("count").textContent=world.echoes.length+" / 3";
+  const m=Math.floor(elapsed/60),s=elapsed%60;
+  $("time").textContent=String(m).padStart(2,"0")+":"+s.toFixed(1).padStart(4,"0");
+}
+function finishLevel(n){
+  state="done";
+  if(n===2){showScreen("win")}
+  else{
+    $("clearText").textContent=n===0?
+      "Первое эхо удержало кнопку. Следующая дверь требует двух одновременных действий.":
+      "Два механизма сработали. Последний уровень потребует планирования прыжков.";
+    showScreen("clear");
+  }
+}
+function retry(){
+  if(world){world.reset();state="playing";showScreen("hud")}
+}
+function togglePause(){
+  if(state==="playing"){state="paused";showScreen("pause")}
+  else if(state==="paused"){state="playing";showScreen("hud");last=performance.now()}
+}
+function mainMenu(){state="menu";world=null;showScreen("menu")}
+function keyDown(e){
+  const k=e.key.toLowerCase();
+  if([" ","arrowleft","arrowright","arrowup"].includes(k))e.preventDefault();
+  if(k==="a"||k==="arrowleft")input.left=true;
+  if(k==="d"||k==="arrowright")input.right=true;
+  if((k===" "||k==="w"||k==="arrowup")&&!input.jump)input.jumpPressed=true;
+  if(k===" "||k==="w"||k==="arrowup")input.jump=true;
+  if(e.repeat)return;
+  if(k==="enter"){
+    if(state==="menu")startGame(0);
+    else if(state==="done")startGame(levelIndex+1);
+    else if(state==="win")startGame(0);
+    else if(state==="paused")togglePause();
+  }
+  if(k==="escape")togglePause();
+  if(k==="r"&&world&&(state==="playing"||state==="paused"))retry();
+  if(k==="e"&&state==="playing"&&world)world.finishRecord();
+}
+function keyUp(e){
+  const k=e.key.toLowerCase();
+  if(k==="a"||k==="arrowleft")input.left=false;
+  if(k==="d"||k==="arrowright")input.right=false;
+  if(k===" "||k==="w"||k==="arrowup")input.jump=false;
+}
+window.addEventListener("keydown",keyDown,{passive:false});
+window.addEventListener("keyup",keyUp);
+window.addEventListener("blur",()=>{
+  input.left=input.right=input.jump=false;
+  if(state==="playing")togglePause();
+});
+$("play").onclick=()=>startGame(0);
+$("resume").onclick=togglePause;
+$("retry").onclick=retry;
+$("home").onclick=mainMenu;
+$("next").onclick=()=>startGame(levelIndex+1);
+$("clearHome").onclick=mainMenu;
+$("again").onclick=()=>startGame(0);
+$("winHome").onclick=mainMenu;
+
+document.querySelectorAll("[data-key]").forEach(b=>{
+  const k=b.dataset.key;
+  function down(e){
+    e.preventDefault();
+    if(k==="record"){if(state==="playing"&&world)world.finishRecord();return}
+    if(k==="jump"){if(!input.jump)input.jumpPressed=true;input.jump=true}
+    else input[k]=true;
+  }
+  function up(e){
+    e.preventDefault();
+    if(k==="jump")input.jump=false;
+    else if(k!=="record")input[k]=false;
+  }
+  b.addEventListener("pointerdown",down);
+  b.addEventListener("pointerup",up);
+  b.addEventListener("pointercancel",up);
+  b.addEventListener("pointerleave",up);
+});
+
+function frame(now){
+  requestAnimationFrame(frame);
+  const dt=Math.min(.05,(now-last)/1000||0);last=now;bgTime+=dt;
+  if(state==="playing"&&world){
+    acc+=dt;let steps=0;
+    while(acc>=STEP&&steps<12){
+      world.update(STEP);updateParticles(STEP);acc-=STEP;steps++;
+    }
+    if(steps===12)acc=0;
+    renderer.draw(world);drawParticles();updateHud();
+  }else{
+    ctx.clearRect(0,0,W,H);
+    const bg={level:makeLevel(0),echoes:[],player:new Player(260,612)};
+    renderer.draw(bg);drawParticles();
+  }
+  if(toastTimer>0){
+    toastTimer-=dt;
+    if(toastTimer<=0)$("toast").style.opacity=0;
+  }
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
